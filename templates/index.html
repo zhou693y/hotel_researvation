@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>酒店客房预订系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🏨 酒店客房预订系统</h1>
+            <nav>
+                <a href="/" class="active">首页</a>
+                <a href="/rooms">客房管理</a>
+                <a href="/customers">客户管理</a>
+                <a href="/bookings">预订管理</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="welcome-section">
+                <h2>欢迎使用酒店客房预订系统</h2>
+                <p>本系统提供完整的酒店客房管理、客户管理和预订管理功能</p>
+
+                <div class="feature-cards">
+                    <div class="card">
+                        <h3>🛏️ 客房管理</h3>
+                        <p>管理酒店客房信息，包括房间类型、价格、状态等</p>
+                        <a href="/rooms" class="btn">进入管理</a>
+                    </div>
+
+                    <div class="card">
+                        <h3>👥 客户管理</h3>
+                        <p>管理客户信息，包括姓名、身份证、联系方式等</p>
+                        <a href="/customers" class="btn">进入管理</a>
+                    </div>
+
+                    <div class="card">
+                        <h3>📅 预订管理</h3>
+                        <p>管理客房预订、入住、退房等业务流程</p>
+                        <a href="/bookings" class="btn">进入管理</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>系统信息</h3>
+                <ul>
+                    <li>数据库: KingbaseES</li>
+                    <li>后端框架: Python Flask</li>
+                    <li>前端技术: HTML + CSS + JavaScript</li>
+                </ul>
+            </div>
+        </main>
+
+        <footer>
+            <p>酒店客房预订系统</p>
+        </footer>
+    </div>
+</body>
+
+</html>

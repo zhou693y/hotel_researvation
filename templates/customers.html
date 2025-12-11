@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户管理 - 酒店客房预订系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🏨 酒店客房预订系统</h1>
+            <nav>
+                <a href="/">首页</a>
+                <a href="/rooms">客房管理</a>
+                <a href="/customers" class="active">客户管理</a>
+                <a href="/bookings">预订管理</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <h2>客户管理</h2>
+                <button class="btn btn-primary" onclick="showAddModal()">+ 添加客户</button>
+            </div>
+
+            <div class="table-container">
+                <table id="customersTable">
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>身份证号</th>
+                            <th>电话</th>
+                            <th>邮箱</th>
+                            <th>性别</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- 添加/编辑客户模态框 -->
+    <div id="customerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">添加客户</h3>
+            <form id="customerForm">
+                <input type="hidden" id="customerId">
+                <div class="form-group">
+                    <label>姓名:</label>
+                    <input type="text" id="name" required>
+                </div>
+                <div class="form-group">
+                    <label>身份证号:</label>
+                    <input type="text" id="idCard" pattern="\d{17}[\dXx]" required>
+                </div>
+                <div class="form-group">
+                    <label>电话:</label>
+                    <input type="tel" id="phone" required>
+                </div>
+                <div class="form-group">
+                    <label>邮箱:</label>
+                    <input type="email" id="email">
+                </div>
+                <div class="form-group">
+                    <label>性别:</label>
+                    <select id="gender">
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let isEditMode = false;
+
+        function loadCustomers() {
+            fetch('/api/customers')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('customersTableBody');
+                        tbody.innerHTML = '';
+                        data.data.forEach(customer => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${customer.name}</td>
+                                <td>${customer.id_card}</td>
+                                <td>${customer.phone}</td>
+                                <td>${customer.email || '-'}</td>
+                                <td>${customer.gender || '-'}</td>
+                                <td>
+                                    <button class="btn-small" onclick="editCustomer(${customer.customer_id})">编辑</button>
+                                    <button class="btn-small btn-danger" onclick="deleteCustomer(${customer.customer_id})">删除</button>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                });
+        }
+
+        function showAddModal() {
+            isEditMode = false;
+            document.getElementById('modalTitle').textContent = '添加客户';
+            document.getElementById('customerForm').reset();
+            document.getElementById('customerId').value = '';
+            document.getElementById('customerModal').style.display = 'block';
+        }
+
+        function editCustomer(customerId) {
+            isEditMode = true;
+            fetch('/api/customers')
+                .then(response => response.json())
+                .then(data => {
+                    const customer = data.data.find(c => c.customer_id === customerId);
+                    if (customer) {
+                        document.getElementById('modalTitle').textContent = '编辑客户';
+                        document.getElementById('customerId').value = customer.customer_id;
+                        document.getElementById('name').value = customer.name;
+                        document.getElementById('idCard').value = customer.id_card;
+                        document.getElementById('phone').value = customer.phone;
+                        document.getElementById('email').value = customer.email || '';
+                        document.getElementById('gender').value = customer.gender || '男';
+                        document.getElementById('customerModal').style.display = 'block';
+                    }
+                });
+        }
+
+        function deleteCustomer(customerId) {
+            if (confirm('确定要删除这个客户吗？')) {
+                fetch(`/api/customers/${customerId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) loadCustomers();
+                    });
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('customerModal').style.display = 'none';
+        }
+
+        document.getElementById('customerForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const customerData = {
+                name: document.getElementById('name').value,
+                id_card: document.getElementById('idCard').value,
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value,
+                gender: document.getElementById('gender').value
+            };
+
+            if (isEditMode) {
+                const customerId = document.getElementById('customerId').value;
+                fetch(`/api/customers/${customerId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(customerData)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) {
+                            closeModal();
+                            loadCustomers();
+                        }
+                    });
+            } else {
+                fetch('/api/customers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(customerData)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) {
+                            closeModal();
+                            loadCustomers();
+                        }
+                    });
+            }
+        });
+
+        loadCustomers();
+    </script>
+</body>
+
+</html>

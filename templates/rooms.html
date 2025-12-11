@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客房管理 - 酒店客房预订系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🏨 酒店客房预订系统</h1>
+            <nav>
+                <a href="/">首页</a>
+                <a href="/rooms" class="active">客房管理</a>
+                <a href="/customers">客户管理</a>
+                <a href="/bookings">预订管理</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <h2>客房管理</h2>
+                <button class="btn btn-primary" onclick="showAddModal()">+ 添加客房</button>
+            </div>
+
+            <div class="table-container">
+                <table id="roomsTable">
+                    <thead>
+                        <tr>
+                            <th>房间号</th>
+                            <th>房型</th>
+                            <th>价格</th>
+                            <th>状态</th>
+                            <th>楼层</th>
+                            <th>描述</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="roomsTableBody">
+                        <!-- 数据将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- 添加/编辑客房模态框 -->
+    <div id="roomModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">添加客房</h3>
+            <form id="roomForm">
+                <input type="hidden" id="roomId">
+                <div class="form-group">
+                    <label>房间号:</label>
+                    <input type="text" id="roomNumber" required>
+                </div>
+                <div class="form-group">
+                    <label>房型:</label>
+                    <select id="roomType" required>
+                        <option value="单人间">单人间</option>
+                        <option value="双人间">双人间</option>
+                        <option value="套房">套房</option>
+                        <option value="豪华套房">豪华套房</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>价格:</label>
+                    <input type="number" id="price" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>状态:</label>
+                    <select id="status">
+                        <option value="空闲">空闲</option>
+                        <option value="已预订">已预订</option>
+                        <option value="已入住">已入住</option>
+                        <option value="维护中">维护中</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>楼层:</label>
+                    <input type="number" id="floorNumber" required>
+                </div>
+                <div class="form-group">
+                    <label>描述:</label>
+                    <textarea id="description" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        let isEditMode = false;
+
+        // 加载客房列表
+        function loadRooms() {
+            fetch('/api/rooms')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('roomsTableBody');
+                        tbody.innerHTML = '';
+                        data.data.forEach(room => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${room.room_number}</td>
+                                <td>${room.room_type}</td>
+                                <td>¥${room.price}</td>
+                                <td><span class="status-badge status-${room.status}">${room.status}</span></td>
+                                <td>${room.floor_number}楼</td>
+                                <td>${room.description || '-'}</td>
+                                <td>
+                                    <button class="btn-small" onclick="editRoom(${room.room_id})">编辑</button>
+                                    <button class="btn-small btn-danger" onclick="deleteRoom(${room.room_id})">删除</button>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                });
+        }
+
+        // 显示添加模态框
+        function showAddModal() {
+            isEditMode = false;
+            document.getElementById('modalTitle').textContent = '添加客房';
+            document.getElementById('roomForm').reset();
+            document.getElementById('roomId').value = '';
+            document.getElementById('status').closest('.form-group').style.display = 'none';
+            document.getElementById('roomModal').style.display = 'block';
+        }
+
+        // 编辑客房
+        function editRoom(roomId) {
+            isEditMode = true;
+            fetch('/api/rooms')
+                .then(response => response.json())
+                .then(data => {
+                    const room = data.data.find(r => r.room_id === roomId);
+                    if (room) {
+                        document.getElementById('modalTitle').textContent = '编辑客房';
+                        document.getElementById('roomId').value = room.room_id;
+                        document.getElementById('roomNumber').value = room.room_number;
+                        document.getElementById('roomType').value = room.room_type;
+                        document.getElementById('price').value = room.price;
+                        document.getElementById('status').value = room.status;
+                        document.getElementById('floorNumber').value = room.floor_number;
+                        document.getElementById('description').value = room.description || '';
+                        document.getElementById('status').closest('.form-group').style.display = 'block';
+                        document.getElementById('roomModal').style.display = 'block';
+                    }
+                });
+        }
+
+        // 删除客房
+        function deleteRoom(roomId) {
+            if (confirm('确定要删除这个客房吗？')) {
+                fetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) loadRooms();
+                    });
+            }
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('roomModal').style.display = 'none';
+        }
+
+        // 表单提交
+        document.getElementById('roomForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const roomData = {
+                room_number: document.getElementById('roomNumber').value,
+                room_type: document.getElementById('roomType').value,
+                price: parseFloat(document.getElementById('price').value),
+                floor_number: parseInt(document.getElementById('floorNumber').value),
+                description: document.getElementById('description').value
+            };
+
+            if (isEditMode) {
+                roomData.status = document.getElementById('status').value;
+                const roomId = document.getElementById('roomId').value;
+                fetch(`/api/rooms/${roomId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(roomData)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) {
+                            closeModal();
+                            loadRooms();
+                        }
+                    });
+            } else {
+                fetch('/api/rooms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(roomData)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) {
+                            closeModal();
+                            loadRooms();
+                        }
+                    });
+            }
+        });
+
+        // 页面加载时获取数据
+        loadRooms();
+    </script>
+</body>
+
+</html>

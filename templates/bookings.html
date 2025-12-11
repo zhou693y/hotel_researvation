@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>预订管理 - 酒店客房预订系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🏨 酒店客房预订系统</h1>
+            <nav>
+                <a href="/">首页</a>
+                <a href="/rooms">客房管理</a>
+                <a href="/customers">客户管理</a>
+                <a href="/bookings" class="active">预订管理</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <h2>预订管理</h2>
+                <button class="btn btn-primary" onclick="showAddModal()">+ 新建预订</button>
+            </div>
+
+            <div class="table-container">
+                <table id="bookingsTable">
+                    <thead>
+                        <tr>
+                            <th>预订号</th>
+                            <th>客户姓名</th>
+                            <th>房间号</th>
+                            <th>入住日期</th>
+                            <th>退房日期</th>
+                            <th>总价</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- 新建预订模态框 -->
+    <div id="bookingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>新建预订</h3>
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label>客户:</label>
+                    <select id="customerId" required>
+                        <option value="">请选择客户</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>客房:</label>
+                    <select id="roomId" required onchange="updatePrice()">
+                        <option value="">请选择客房</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>入住日期:</label>
+                    <input type="date" id="checkInDate" required onchange="calculateTotal()">
+                </div>
+                <div class="form-group">
+                    <label>退房日期:</label>
+                    <input type="date" id="checkOutDate" required onchange="calculateTotal()">
+                </div>
+                <div class="form-group">
+                    <label>总价:</label>
+                    <input type="number" id="totalPrice" step="0.01" readonly>
+                </div>
+                <div class="form-group">
+                    <label>备注:</label>
+                    <textarea id="remarks" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 退房模态框 -->
+    <div id="checkoutModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCheckoutModal()">&times;</span>
+            <h3>办理退房</h3>
+            <form id="checkoutForm">
+                <input type="hidden" id="checkoutBookingId">
+                <div class="form-group">
+                    <label>实际金额:</label>
+                    <input type="number" id="actualAmount" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>支付方式:</label>
+                    <select id="paymentMethod" required>
+                        <option value="现金">现金</option>
+                        <option value="支付宝">支付宝</option>
+                        <option value="微信">微信</option>
+                        <option value="银行卡">银行卡</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">确认退房</button>
+                    <button type="button" class="btn" onclick="closeCheckoutModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let roomPrices = {};
+
+        function loadBookings() {
+            fetch('/api/bookings')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('bookingsTableBody');
+                        tbody.innerHTML = '';
+                        data.data.forEach(booking => {
+                            const tr = document.createElement('tr');
+                            let actions = '';
+
+                            if (booking.status === '已预订') {
+                                actions = `
+                                    <button class="btn-small" onclick="checkIn(${booking.booking_id})">入住</button>
+                                    <button class="btn-small btn-danger" onclick="cancelBooking(${booking.booking_id})">取消</button>
+                                `;
+                            } else if (booking.status === '已入住') {
+                                actions = `<button class="btn-small" onclick="showCheckoutModal(${booking.booking_id}, ${booking.total_price})">退房</button>`;
+                            }
+
+                            tr.innerHTML = `
+                                <td>${booking.booking_id}</td>
+                                <td>${booking.customer_name}</td>
+                                <td>${booking.room_number}</td>
+                                <td>${booking.check_in_date}</td>
+                                <td>${booking.check_out_date}</td>
+                                <td>¥${booking.total_price}</td>
+                                <td><span class="status-badge status-${booking.status}">${booking.status}</span></td>
+                                <td>${actions}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                });
+        }
+
+        function showAddModal() {
+            document.getElementById('bookingForm').reset();
+            loadCustomers();
+            loadAvailableRooms();
+            document.getElementById('bookingModal').style.display = 'block';
+        }
+
+        function loadCustomers() {
+            fetch('/api/all-customers')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const select = document.getElementById('customerId');
+                        select.innerHTML = '<option value="">请选择客户</option>';
+                        data.data.forEach(customer => {
+                            select.innerHTML += `<option value="${customer.customer_id}">${customer.name} - ${customer.phone}</option>`;
+                        });
+                    }
+                });
+        }
+
+        function loadAvailableRooms() {
+            fetch('/api/available-rooms')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const select = document.getElementById('roomId');
+                        select.innerHTML = '<option value="">请选择客房</option>';
+                        roomPrices = {};
+                        data.data.forEach(room => {
+                            select.innerHTML += `<option value="${room.room_id}">${room.room_number} - ${room.room_type} (¥${room.price}/晚)</option>`;
+                            roomPrices[room.room_id] = room.price;
+                        });
+                    }
+                });
+        }
+
+        function updatePrice() {
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            const roomId = document.getElementById('roomId').value;
+            const checkIn = document.getElementById('checkInDate').value;
+            const checkOut = document.getElementById('checkOutDate').value;
+
+            if (roomId && checkIn && checkOut) {
+                const price = roomPrices[roomId];
+                const days = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24));
+                if (days > 0) {
+                    document.getElementById('totalPrice').value = (price * days).toFixed(2);
+                }
+            }
+        }
+
+        function checkIn(bookingId) {
+            if (confirm('确认办理入住？')) {
+                fetch(`/api/bookings/${bookingId}/checkin`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) loadBookings();
+                    });
+            }
+        }
+
+        function showCheckoutModal(bookingId, totalPrice) {
+            document.getElementById('checkoutBookingId').value = bookingId;
+            document.getElementById('actualAmount').value = totalPrice;
+            document.getElementById('checkoutModal').style.display = 'block';
+        }
+
+        function closeCheckoutModal() {
+            document.getElementById('checkoutModal').style.display = 'none';
+        }
+
+        function cancelBooking(bookingId) {
+            if (confirm('确定要取消这个预订吗？')) {
+                fetch(`/api/bookings/${bookingId}/cancel`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        if (data.success) loadBookings();
+                    });
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('bookingModal').style.display = 'none';
+        }
+
+        document.getElementById('bookingForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const bookingData = {
+                customer_id: parseInt(document.getElementById('customerId').value),
+                room_id: parseInt(document.getElementById('roomId').value),
+                check_in_date: document.getElementById('checkInDate').value,
+                check_out_date: document.getElementById('checkOutDate').value,
+                total_price: parseFloat(document.getElementById('totalPrice').value),
+                remarks: document.getElementById('remarks').value
+            };
+
+            fetch('/api/bookings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bookingData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        closeModal();
+                        loadBookings();
+                    }
+                });
+        });
+
+        document.getElementById('checkoutForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const bookingId = document.getElementById('checkoutBookingId').value;
+            const checkoutData = {
+                actual_amount: parseFloat(document.getElementById('actualAmount').value),
+                payment_method: document.getElementById('paymentMethod').value
+            };
+
+            fetch(`/api/bookings/${bookingId}/checkout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(checkoutData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        closeCheckoutModal();
+                        loadBookings();
+                    }
+                });
+        });
+
+        loadBookings();
+    </script>
+</body>
+
+</html>
